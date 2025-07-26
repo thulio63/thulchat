@@ -12,7 +12,7 @@ import (
 
 type config struct {
 	db *database.Queries
-	UID uuid.UUID
+	User User
 	command_list map[string]cli_command
 }
 
@@ -32,7 +32,7 @@ func main() {
 	defer db.Close()
 	dbQueries := database.New(db)
 	//store data on db, user id, available commands
-	config := config{db: dbQueries}
+	config := config{db: dbQueries, User: User{}}
 	config.command_list = map[string]cli_command{
 		"login": {
 			name: "login",
@@ -58,16 +58,21 @@ func main() {
 
 	//open storage for current user info
 	//thisUser := User{}
-	
+
 
 	//greeting
-	fmt.Println("Hello! Welcome to ThulChat")
+	fmt.Println("\nHello! Welcome to ThulChat")
 	fmt.Println("For a list of available commands, type 'help'")
 	fmt.Println("")
 	
-
 	//readline for repl commands
-	rl, err := readline.New("> ")
+	prompt := "> "
+	if config.User.Nickname != "" {
+		prompt = config.User.Nickname + " > "
+	} else if config.User.UserID != uuid.Nil {
+		prompt = config.User.Username + " > "
+	}
+	rl, err := readline.New(prompt)
 	if err != nil {
 		//change error handling
 		panic(err)
@@ -82,7 +87,12 @@ func main() {
 			break
 		}
 		if line == "exit" {
-			fmt.Println("Closing ThulChat. Goodbye!")
+			personal := ""
+			if config.User.Username != "" {
+				personal = ", " + config.User.Username
+			}
+			farewell := fmt.Sprintf("Closing ThulChat. Goodbye%s!", personal)
+			fmt.Println(farewell)
 			return
 		}
 		for _, command := range config.command_list {
@@ -94,6 +104,12 @@ func main() {
 		if !found {
 			response := fmt.Sprintf("%s is not a valid command", line)
 			fmt.Println(response)
+		} else {
+			if config.User.Nickname != "" {
+				rl.SetPrompt(config.User.Nickname + " > ")
+			} else if config.User.UserID != uuid.Nil {
+				rl.SetPrompt(config.User.Username + " > ")
+			}
 		}
 	}	
 }

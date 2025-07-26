@@ -7,49 +7,67 @@ package database
 
 import (
 	"context"
+	"database/sql"
+	"time"
 
 	"github.com/google/uuid"
 )
 
 const checkPassword = `-- name: CheckPassword :one
-SELECT id
+SELECT id, username, created_at, updated_at, nickname
 FROM users
 WHERE password = $1
 `
 
-func (q *Queries) CheckPassword(ctx context.Context, password string) (uuid.UUID, error) {
+type CheckPasswordRow struct {
+	ID        uuid.UUID
+	Username  string
+	CreatedAt time.Time
+	UpdatedAt time.Time
+	Nickname  sql.NullString
+}
+
+func (q *Queries) CheckPassword(ctx context.Context, password []byte) (CheckPasswordRow, error) {
 	row := q.db.QueryRowContext(ctx, checkPassword, password)
-	var id uuid.UUID
-	err := row.Scan(&id)
-	return id, err
+	var i CheckPasswordRow
+	err := row.Scan(
+		&i.ID,
+		&i.Username,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Nickname,
+	)
+	return i, err
 }
 
 const createUser = `-- name: CreateUser :one
-INSERT INTO users (id, created_at, updated_at, email, password)
+INSERT INTO users (id, created_at, updated_at, username, password, nickname)
 VALUES (
     gen_random_uuid(),
     NOW(),
     NOW(),
     $1, 
-    $2
+    $2,
+    NULL
 )
-RETURNING id, created_at, updated_at, email, password
+RETURNING id, created_at, updated_at, username, password, nickname
 `
 
 type CreateUserParams struct {
-	Email    string
-	Password string
+	Username string
+	Password []byte
 }
 
 func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, error) {
-	row := q.db.QueryRowContext(ctx, createUser, arg.Email, arg.Password)
+	row := q.db.QueryRowContext(ctx, createUser, arg.Username, arg.Password)
 	var i User
 	err := row.Scan(
 		&i.ID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.Email,
+		&i.Username,
 		&i.Password,
+		&i.Nickname,
 	)
 	return i, err
 }
@@ -57,11 +75,11 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 const findUser = `-- name: FindUser :one
 SELECT id
 FROM users
-WHERE email = $1
+WHERE username = $1
 `
 
-func (q *Queries) FindUser(ctx context.Context, email string) (uuid.UUID, error) {
-	row := q.db.QueryRowContext(ctx, findUser, email)
+func (q *Queries) FindUser(ctx context.Context, username string) (uuid.UUID, error) {
+	row := q.db.QueryRowContext(ctx, findUser, username)
 	var id uuid.UUID
 	err := row.Scan(&id)
 	return id, err

@@ -55,7 +55,7 @@ func (cfg *config)login() {
 				fmt.Println("Error reading:", err)
 				break
 			}
-			if line != "Y" || line != "y" {
+			if line != "Y" && line != "y" {
 				return
 			}
 			fmt.Println("\nPlease enter your username:")
@@ -65,7 +65,7 @@ func (cfg *config)login() {
 		pass := enterPassword()
 		//test password
 		pID, err := cfg.db.CheckPassword(info, pass)
-		if err != nil {
+		if err != nil && !errors.Is(err, sql.ErrNoRows){
 			fmt.Println("Error checking password:", err)
 		}
 		if pID.ID == uid {

@@ -59,7 +59,7 @@ func (cfg *config)sign_up() {
 				fmt.Println("Error reading:", err)
 				break
 			}
-			if line != "Y" || line != "y" {
+			if line != "Y" && line != "y" {
 				return
 			}
 			continue
@@ -131,7 +131,7 @@ func nickname_create(username string) string {
 		//change error handling
 		fmt.Println("Error creating nickname:", err)
 	}
-	if line != "Y" {
+	if line != "Y" && line!="y" {
 		return username
 	}
 	fmt.Println("Choose your nickname:")

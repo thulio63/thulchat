@@ -7,13 +7,14 @@ import (
 	"fmt"
 
 	"github.com/chzyer/readline"
+	"github.com/fatih/color"
 	"github.com/google/uuid"
 	"github.com/thulio63/thulchat/internal/auth"
 )
 
 func (cfg *config)login() {
 	
-	fmt.Println("\nPlease enter your username:")
+	//fmt.Println("\nPlease enter your username:")
 
 
 	//readline for repl commands
@@ -25,15 +26,15 @@ func (cfg *config)login() {
 	defer rl.Close()
 
 	for {
-		line, err := rl.Readline()
-		if err != nil {
-			break
-		}
+		// line, err := rl.Readline()
+		// if err != nil {
+		// 	break
+		// }
 		//implement verification of proper format... regex?
-		username := line
+		username, _ := Clean(rl, "\nPlease enter your username:",1)
 		//if input is incorrect, continue loop
 		if username == "" {
-			fmt.Println("Please enter a username:")
+			fmt.Println("No text was entered.")
 			continue
 		}
 		
@@ -42,23 +43,21 @@ func (cfg *config)login() {
 		uid, err := cfg.db.FindUser(info, username)
 		//ensures an empty table doesn't break the request
 		if err != nil && !errors.Is(err, sql.ErrNoRows){
-			fmt.Println("Error connecting to the user database:", err)
+			color.Red("Error connecting to the user database:", err)
 			return 
 		}
 
 		if uid == uuid.Nil {
 			fmt.Println("No account found with the username", username)
 			//logic for redirecting
-			fmt.Println("Would you like to try again? (Y/n)")
-			line, err = rl.Readline()
-			if err != nil {
-				fmt.Println("Error reading:", err)
-				break
-			}
-			if line != "Y" && line != "y" {
+			//fmt.Println("Would you like to try again? (Y/n)")
+
+			response,_ := Clean(rl, "Would you like to try again? (Y/n)", 1)
+
+			if response != "y" {
 				return
 			}
-			fmt.Println("\nPlease enter your username:")
+			//fmt.Println("\nPlease enter your username:")
 			continue
 		}
 		fmt.Println("Enter your password:")
@@ -66,11 +65,11 @@ func (cfg *config)login() {
 		//test password
 		pID, err := cfg.db.CheckPassword(info, pass)
 		if err != nil && !errors.Is(err, sql.ErrNoRows){
-			fmt.Println("Error checking password:", err)
+			color.Red("Error checking password:", err)
 		}
 		if pID.ID == uid {
 			//success
-			fmt.Println("Login successful!")
+			color.Yellow("Login successful!")
 			if pID.Nickname.Valid {
 				cfg.User.Nickname = pID.Nickname.String
 			}
@@ -81,7 +80,7 @@ func (cfg *config)login() {
 			return
 		}
 		//implement failure into the enterpassword function (maybe) for retries
-		fmt.Println("Incorrect password\nReturning to menu")
+		color.Red("Incorrect password\nReturning to menu")
 		return 
 	}
 	//return 
@@ -97,7 +96,7 @@ func enterPassword() []byte {
 
 	line, err := rl.Readline()
 	if err != nil {
-		fmt.Println("Error reading line:", err)
+		color.Red("Error reading line:", err)
 		return nil
 	}
 	revealed := auth.EncodePassword(line)

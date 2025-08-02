@@ -11,6 +11,22 @@ import (
 	"github.com/google/uuid"
 )
 
+type Message struct {
+	SenderID uuid.UUID
+	Body     string
+	SentAt   time.Time
+	Hostname string
+	Port     string
+}
+
+type Server struct {
+	CreatorID uuid.UUID
+	ServerID  uuid.UUID
+	CreatedAt time.Time
+	Hostname  string
+	Port      string
+}
+
 type User struct {
 	ID        uuid.UUID
 	CreatedAt time.Time

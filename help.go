@@ -2,19 +2,17 @@ package main
 
 import (
 	"fmt"
-
-	"github.com/fatih/color"
 )
 
 func (cfg *config)help() {
-	color.Cyan("\nCommand options:")
+	cfg.colorCon.prompt.Println("\nCommand options:")
 	fmt.Println("")
-	myColor := color.BgRGB(12, 12, 12)
-	myColor.Add(color.FgHiWhite)
+	// myColor := color.BgRGB(12, 12, 12)
+	// myColor.Add(color.FgHiWhite)
 	for key, val := range cfg.command_list {
 		if val.visible {
 			mess := fmt.Sprintf("%s: %s", key, val.description)
-			myColor.Println(mess)
+			cfg.colorCon.info.Println(mess)
 		}
 	}
 	fmt.Println("")

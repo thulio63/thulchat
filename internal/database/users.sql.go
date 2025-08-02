@@ -84,3 +84,23 @@ func (q *Queries) FindUser(ctx context.Context, username string) (uuid.UUID, err
 	err := row.Scan(&id)
 	return id, err
 }
+
+const setNickname = `-- name: SetNickname :one
+INSERT INTO users (nickname)
+VALUES ($1)
+RETURNING id, created_at, updated_at, username, password, nickname
+`
+
+func (q *Queries) SetNickname(ctx context.Context, nickname sql.NullString) (User, error) {
+	row := q.db.QueryRowContext(ctx, setNickname, nickname)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Username,
+		&i.Password,
+		&i.Nickname,
+	)
+	return i, err
+}

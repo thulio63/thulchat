@@ -1,13 +1,13 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"net"
 	"strings"
 
 	"github.com/chzyer/readline"
-	"github.com/fatih/color"
 	"github.com/google/uuid"
 	_ "github.com/lib/pq"
 	"github.com/thulio63/thulchat/internal/database"
@@ -17,9 +17,11 @@ type config struct {
 	db *database.Queries
 	User *User
 	command_list map[string]*cli_command
-	servers_active []*Server
-	servers_count *int
+	servers_active []*Server //CONNECT TO DB ON ENTRY TO POPULATE
+	//servers_count *int
 	MyIP net.IP
+	colorCon colorConfig
+	ctx context.Context
 }
 
 type cli_command struct {
@@ -30,17 +32,22 @@ type cli_command struct {
 	goro bool
 }
 
-func Clean(rl *readline.Instance, text string, args int) (string, []string) {
-	fmt.Println(text)
+func Clean(text string) string {
+	trimmed := strings.TrimSpace(text)
+	lower := strings.ToLower(trimmed)
+	return lower
+}
+
+func (cfg *config)CleanPrompt(rl *readline.Instance, text string, args int) (string, []string) {
+	cfg.colorCon.prompt.Println(text)
 
 	line, err := rl.Readline()
 	if err != nil {
-		fmt.Println("error reading input:", err)
+		cfg.colorCon.err.Println("error reading input:", err)
 	}
-	trimmed := strings.TrimSpace(line)
-	words := strings.Split(trimmed, " ")
+	words := strings.Split(line, " ")
 	for num := range args {
-		words[num] = strings.ToLower(words[num])
+		words[num] = Clean(words[num])
 	}
 	command := words[0]
 	if args == 1 {
@@ -50,93 +57,58 @@ func Clean(rl *readline.Instance, text string, args int) (string, []string) {
 	
 }
 
-func Space() {
-	
-}
-
 func main() {
+	//create color config for user
+	clrCfg := CreateColorConfig()
+
 	//connect to database
 	dbURL := "postgres://andrewthul:@localhost:5432/thulchat?sslmode=disable"
 	db, err := sql.Open("postgres", dbURL)
 	if err != nil {
-		fmt.Println("Error opening database:", err)
+		clrCfg.err.Println("Error opening database:", err)
 	}
 	defer db.Close()
+	
 	dbQueries := database.New(db)
 	//store data on db, user id, available commands
-	empty := 0
+
 	var servers []*Server
 	opened := false
-	//get local outbound ip
-	myIP := GetOutboundIP()
-	config := config{db: dbQueries, User: &User{}, servers_count: &empty, servers_active: servers, MyIP: myIP}
-	config.command_list = map[string]*cli_command{
-		"login": {
-			name: "login",
-			description: "Enter a username and password to log in to your account",
-			callback: config.login,
-			visible: true,
-			goro: false,
-		},
-		"signup": {
-			name: "signup",
-			description: "Create an account with a username and a password",
-			callback: config.sign_up,
-			visible: true,
-			goro: false,
-		},
-		"help": {
-			name: "help",
-			description: "Displays available commands and their descriptions",
-			callback: config.help,
-			visible: true,
-			goro: false,
-		},
-		"exit": {
-			name: "exit",
-			description: "Exits the application",
-			callback: exit,
-			visible: true,
-			goro: false,
-		},
-		"s_c": {
-			name: "s_c",
-			description: "Creates a server for communication",
-			callback: config.New, 
-			visible: false,
-			goro: false,
-		},
-		"connect": { // change to enter, make funtion for loop to create "chatroom"
-			name: "connect",
-			description: "Connect to a server",
-			callback: config.Connect,
-			visible: false,
-			goro: false,
-		},
-		"find": {
-			name: "find",
-			description: "Search for other users or available servers",
-			callback: config.Find,
-			visible: false,
-			goro: false,
-		},
-		"myip": {
-			name: "myip",
-			description: "Prints outbound IP address for this device",
-			callback: config.myIP,
-			visible: true,
-			goro: false,
-		},
+
+	//retrieve list of currently operational servers
+	contex := context.Background()
+	sqlServers, err := dbQueries.RetrieveServers(contex)
+	if err != nil {
+		clrCfg.err.Println("error retrieving servers from database:", err)
 	}
 	
-	//myColor := color.BgRGB(12, 12, 12)
-	color.Set().AddBgRGB(12, 12,12)
-	color.Set().AddRGB(122, 231, 95)
+	num := 0
+	for i, s := range sqlServers {
+		newServ := Server{
+			host: s.Hostname,
+			port: s.Port,
+			context: contex,
+			serv: &database.Server{},
+		}
+		servers = append(servers, &newServ)
+		num = i
+	}
+	clrCfg.info.Println("Number of servers found:", num)
+
+	//get local outbound ip
+	myIP := GetOutboundIP()
+
+	//create config for current user
+	//ADD WAY TO REMEMBER USER ************************
+	config := config{db: dbQueries, User: &User{}, servers_active: servers, MyIP: myIP, colorCon: clrCfg, ctx: contex}
+
+	comm_list := config.PopulateCommands()
+	config.command_list = comm_list
 
 	//greeting
-	color.Cyan("\nHello! Welcome to ThulChat")
+	config.colorCon.success.Println("\nHello! Welcome to ThulChat")
 	//fmt.Println("\nHello! Welcome to ThulChat")
-	color.HiWhite("For a list of available commands, type 'help'")
+	config.colorCon.info.Println("For a list of available commands, type 'help'")
 	fmt.Println("")
 	
 	//myColor.Add(color.FgGreen)
@@ -157,10 +129,10 @@ func main() {
 	for {
 		//logic for revealing commands to user
 		if config.User.UserID != uuid.Nil {
-			if !config.command_list["s_c"].visible {
-				UpdateVisibile(true ,config.command_list, "s_c")
+			if !config.command_list["create"].visible {
+				UpdateVisibile(true ,config.command_list, "create")
 				continue
-			} else if *config.servers_count != 0 && !opened{
+			} else if len(config.servers_active) != 0 && !opened{
 				UpdateVisibile(true, config.command_list, "connect")
 				//prevents infinite loop
 				opened = true
@@ -183,8 +155,17 @@ func main() {
 			if config.User.Username != "" {
 				personal = ", " + config.User.Username
 			}
+			config.colorCon.info.Println("deleting servers...")
+			_, err := config.db.DeleteServer(config.ctx, config.User.UserID)
+			if err != nil {
+				config.colorCon.err.Println("error deleting servers:", err)
+			}
+			// for s := len(config.servers_active) - 1; s >= 0; s--{
+			// 	config.db.DeleteServer(config.ctx, config.servers_active[s].serv.ServerID)
+			// }
+
 			farewell := fmt.Sprintf("\nClosing ThulChat. Goodbye%s!", personal)
-			color.Cyan(farewell)
+			config.colorCon.success.Println(farewell)
 			fmt.Println("")
 			return
 		}
@@ -202,8 +183,8 @@ func main() {
 		//fmt.Println("loop escaped")
 		
 		if !found {
-			response := fmt.Sprintf("%s is not a valid command", trimmed)
-			color.Red(response)
+			response := fmt.Sprintf("'%s' is not a valid command", trimmed)
+			config.colorCon.err.Println(response)
 			fmt.Println("")
 		} else { //sets prompt name to nickname or username
 			if config.User.Nickname != "" {
@@ -217,7 +198,7 @@ func main() {
 			}
 		}
 	}	
-	color.Unset()
+	//color.Unset()
 }
 
 func UpdateVisibile(change bool,list map[string]*cli_command, comms ...string) {

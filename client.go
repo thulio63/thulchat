@@ -6,7 +6,7 @@ import (
 	"net"
 
 	"github.com/chzyer/readline"
-	"github.com/fatih/color"
+	"github.com/thulio63/thulchat/internal/database"
 )
 
 //specify server to connect to
@@ -21,7 +21,7 @@ func (cfg *config)Connect() {
 	active := len(cfg.servers_active)
 	if active > 0 {
 		prompt := fmt.Sprintf("Would you like to choose from %d known server(s)? (Y/n)", active)
-		response,_ := Clean(rl, prompt, 1)
+		response,_ := cfg.CleanPrompt(rl, prompt, 1)
 
 		if response == "y" {
 			for _, server := range cfg.servers_active {
@@ -31,54 +31,91 @@ func (cfg *config)Connect() {
 	}
 
 	//add logic to select from available options
-	fmt.Println("Please enter the desired server host:")
+	prompt := "Please enter the desired server host:"
+	hostStr, _ := cfg.CleanPrompt(rl, prompt, 1)
 	//autocomplete for known servers
 	
-	hostStr, err := rl.Readline()
-	if err!= nil {
-		fmt.Println("error reading input:", err)
-	}
+	// cfg.colorCon.prompt.Println("Please enter the desired server host:")
+	// hostStr, err := rl.Readline()
+	// if err!= nil {
+	// 	cfg.colorCon.err.Println("error reading input:", err)
+	// 	return
+	// }
 	
-	fmt.Println("Select which port to connect to:")
 	//autocomplete for known ports
-	
-	portStr, err := rl.Readline()
-	if err!= nil {
-		fmt.Println("error reading input:", err)
-	}
+	prompt = "Select which port to connect to:"
+	portStr, _ := cfg.CleanPrompt(rl, prompt, 1)
+
+	// cfg.colorCon.prompt.Println("Select which port to connect to:")
+	// portStr, err := rl.Readline()
+	// if err!= nil {
+	// 	cfg.colorCon.err.Println("error reading input:", err)
+	// }
 
 
 	hp := hostStr + ":" + portStr
 	conn, err := net.Dial("tcp", hp)
 	if err != nil {
-		fmt.Println("Error connecting to server:", err)
+		cfg.colorCon.err.Println("Error connecting to server:", err)
 		return
 	}
 	defer conn.Close()
+	
+	//clear screen here ***************************************
+	cfg.colorCon.success.Println("Connected to ThulChat Server")
 
-	fmt.Println("Connected to ThulChat Server")
+	for {
+		//message loop
 
-	fmt.Println("Enter your message:")
+
+
+
+
+		//clear line after input
+
+
+
+
+
+
+
+
+
+
+
+
+		
+		break
+	}
+
+	cfg.colorCon.prompt.Println("Enter your message:")
 	line, err := rl.Readline()
 	if err != nil {
-		fmt.Println("Error reading your message:", err)
+		cfg.colorCon.err.Println("Error reading your message:", err)
 		return
 	}
 	
 	_, err = conn.Write([]byte(line))
 	if err != nil {
-		fmt.Println("Error sending data:", err)
+		cfg.colorCon.err.Println("Error sending data:", err)
 	}
-	fmt.Println("Message sent")
+	cfg.colorCon.success.Println("Message sent")
+
+	cfg.db.SendMessage(cfg.ctx, database.SendMessageParams{
+		SenderID: cfg.User.UserID,
+		Body: line,
+		Hostname: hostStr,
+		Port: portStr,
+})
 
 	//read server response
 	buf := make([]byte, len(line))
 	if _, err := io.ReadFull(conn, buf); err != nil {
-		fmt.Println("Error reading from server:", err)
+		cfg.colorCon.err.Println("Error reading from server:", err)
 		return
 	}
 
-	fmt.Println("Server says:", string(buf))
+	cfg.colorCon.info.Println("Server says:", string(buf))
 }
 
 func (cfg *config)Find() {
@@ -90,7 +127,7 @@ func (cfg *config)Find() {
 	defer rl.Close()
 	sel := false
 	for !sel{
-		response, _ := Clean(rl, "Would you like to search for a user or a server?", 1)
+		response, _ := cfg.CleanPrompt(rl, "Would you like to search for a user or a server?", 1)
 		switch response {
 		case "user":
 			sel = true
@@ -99,7 +136,7 @@ func (cfg *config)Find() {
 			sel = true
 			cfg.FindServer()
 		default:
-			fmt.Println("Not a valid selection. Please choose from the following: (user/server)")
+			cfg.colorCon.err.Println("Not a valid selection. Please choose from the following: (user/server)")
 		}
 	}
 }
@@ -110,26 +147,28 @@ func (cfg *config)FindUser() {
 }
 
 func (cfg *config)FindServer() {
+	//CONNECT TO SQL QUERY ********************************************
 	//list available servers
 	num := len(cfg.servers_active)
 	if num == 0 {
-		color.Red("No known available servers")
+		cfg.colorCon.err.Println("No known available servers")
 		return
 	} else if num == 1 {
-		color.Cyan("1 known available server:")
+		cfg.colorCon.success.Println("1 known available server:")
 	} else {
 		mess := fmt.Sprintf("%d known available servers:", num)
-		color.Cyan(mess)
+		cfg.colorCon.success.Println(mess)
 	}
 	fmt.Println("")
 	for _, serv := range cfg.servers_active {
-		color.HiWhite(serv.host + ":" + serv.port)
+		cfg.colorCon.info.Println(serv.host + ":" + serv.port)
 	}
+	fmt.Println("")
 
 	//logic for joining
 }
 
 func (cfg *config)myIP() {
-	fmt.Println(cfg.MyIP.String())
+	cfg.colorCon.info.Println(cfg.MyIP.String())
 	fmt.Println("")
 }

@@ -88,6 +88,7 @@ func (cfg *config)sign_up() {
 		fmt.Println("Would you like to create a nickname? (Y/n)")
 		nick := nickname_create(cfg.User.Username)
 		cfg.User.Nickname = nick
+		fmt.Println("")
 		//cfg.pass = newUser.pass
 		return 
 	}

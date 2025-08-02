@@ -15,6 +15,11 @@ SELECT id
 FROM users
 WHERE username = $1;
 
+-- name: SetNickname :one
+INSERT INTO users (nickname)
+VALUES ($1)
+RETURNING *;
+
 -- name: CheckPassword :one
 SELECT id, username, created_at, updated_at, nickname
 FROM users

@@ -1,4 +1,4 @@
-#Welcome to ThulChat!
+# Welcome to ThulChat!
 
 *this will be filled in more later...* [^1]
 

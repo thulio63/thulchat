@@ -1,13 +1,16 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"database/sql"
+	"encoding/json"
 	"fmt"
-	"io"
-	"log"
 	"net"
+	"sync"
 
 	"github.com/chzyer/readline"
+	"github.com/google/uuid"
 	"github.com/thulio63/thulchat/internal/database"
 )
 
@@ -16,6 +19,7 @@ type Server struct {
 	port string
 	context context.Context
 	serv *database.Server
+	clients *map[uuid.UUID]Client
 }
 
 type Client struct {
@@ -68,11 +72,14 @@ func (cfg *config)New() {
 	if err != nil {
 		cfg.colorCon.err.Println("error creating server:", err)
 	}
+
+	cliList := make(map[uuid.UUID]Client)
 	serv := Server{
 		host: hostStr,
 		port: portStr,
 		context: ctx,
 		serv: &server,
+		clients: &cliList,
 	}
 	//handle error for invalid server address
 	cfg.servers_active = append(cfg.servers_active, &serv)
@@ -82,13 +89,26 @@ func (cfg *config)New() {
 	
 	cfg.colorCon.success.Println("Started the server")
 	<- ch
+
 }
 
+// need to return channel AND send same channel to the Respond function to bridge to client and the server via channel *******************************
 func (server *Server) Run(ch chan bool) {
+	mu := sync.Mutex{}
+	
+	//connect to database
+	dbURL := "postgres://andrewthul:@localhost:5432/thulchat?sslmode=disable"
+	db, err := sql.Open("postgres", dbURL)
+	if err != nil {
+		fmt.Println("Error opening database:", err)
+	}
+	defer db.Close()
+	dbQ := database.New(db)
+
 	hp := fmt.Sprintf("%s:%s", server.host, server.port)
 	listener, err := net.Listen("tcp", hp)
 	if err != nil {
-		log.Fatal(err)
+		fmt.Println("error listening:", err)
 	}
 	fmt.Println("Listening on", hp)
 	fmt.Println("")
@@ -98,23 +118,84 @@ func (server *Server) Run(ch chan bool) {
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
-			log.Fatal(err)
+			fmt.Println("error accepting connection:", err)
 		}
+		//newClient := Client{Client: conn}
+		//edit 
 
-		go Respond(conn)
+		go server.Respond(conn, *dbQ, &mu)
 	}
 }
 
-func Respond(c net.Conn) {
-	io.Copy(c, c)
+func (server *Server) Respond(c net.Conn, db database.Queries, mu *sync.Mutex) {
+	for {
+		//channel here to block until data received
+		//server.comm <-
+		//actually i think the listener.accept does this already
+
+		var buf bytes.Buffer
+		_, err := buf.ReadFrom(c) //will this require io.readall?
+		if err != nil {
+			fmt.Println("server error reading from connection:", err)
+		}
+
+		if buf.String() == "death" {
+			//fmt.Println("exiting server")
+			break
+		}
+
+		var incDat Message
+		err = json.Unmarshal(buf.Bytes(), &incDat)
+		if err != nil {
+			fmt.Println("server error reading sent data:", err)
+			break
+		}
+
+
+
+		mu.Lock()
+		mess := database.SendMessageParams{
+			SenderID: incDat.Sender,
+			Body: incDat.Body,
+			ServerID: server.serv.ServerID,
+		}
+		db.SendMessage(server.context, mess)
+
+
+		allMessages, err := db.RetrieveMessages(server.context, server.serv.ServerID)
+		if err != nil {
+			mu.Unlock()
+			fmt.Println("server error retrieving messages from databse:", err)
+			break
+		}
+		mu.Unlock()
+
+		var chatData []Message //get sender nickname with inner join ******************************
+		for _, log := range allMessages {
+			chatData = append(chatData, Message{Body: log.Body, TimeSent: log.SentAt, Sender: log.SenderID})
+		}
+
+		jsonData, err := json.Marshal(chatData)
+		if err != nil {
+			fmt.Println("server error marshalling data:", err)
+		}
+
+		_, err = c.Write(jsonData)
+		if err != nil {
+			fmt.Println("server error writing data:", err)
+		}
+
+	}
 	c.Close()
 }
+
+//func RegisterClient()
 
 // Get preferred outbound ip of this machine
 func GetOutboundIP() net.IP {
     conn, err := net.Dial("udp", "8.8.8.8:80")
     if err != nil {
-        log.Fatal(err)
+        fmt.Println("error finding IP:", err)
     }
     defer conn.Close()
 

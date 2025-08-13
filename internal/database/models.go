@@ -5,7 +5,6 @@
 package database
 
 import (
-	"database/sql"
 	"time"
 
 	"github.com/google/uuid"
@@ -17,6 +16,7 @@ type Message struct {
 	SentAt   time.Time
 	Hostname string
 	Port     string
+	ServerID uuid.UUID
 }
 
 type Server struct {
@@ -33,5 +33,5 @@ type User struct {
 	UpdatedAt time.Time
 	Username  string
 	Password  []byte
-	Nickname  sql.NullString
+	Nickname  string
 }

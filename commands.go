@@ -58,6 +58,13 @@ func (config *config)PopulateCommands() map[string]*cli_command{
 				visible: true,
 				goro: false,
 			},
+			"nickname": {
+				name: "nickname",
+				description: "Change your nickname",
+				callback: config.SetNickname,
+				visible: false, //update revealing logic *****************************
+				goro: false,
+			},
 		}
 		return command_list
 }

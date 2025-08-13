@@ -7,36 +7,66 @@ package database
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 )
 
+const retrieveMessages = `-- name: RetrieveMessages :many
+SELECT sender_id, body, sent_at
+FROM messages
+WHERE server_id = $1
+ORDER BY sent_at
+`
+
+type RetrieveMessagesRow struct {
+	SenderID uuid.UUID
+	Body     string
+	SentAt   time.Time
+}
+
+func (q *Queries) RetrieveMessages(ctx context.Context, serverID uuid.UUID) ([]RetrieveMessagesRow, error) {
+	rows, err := q.db.QueryContext(ctx, retrieveMessages, serverID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []RetrieveMessagesRow
+	for rows.Next() {
+		var i RetrieveMessagesRow
+		if err := rows.Scan(&i.SenderID, &i.Body, &i.SentAt); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const sendMessage = `-- name: SendMessage :one
-INSERT INTO messages (sender_id, body, sent_at, hostname, port)
+INSERT INTO messages (sender_id, body, sent_at, server_id)
 VALUES (
     $1,
     $2,
     NOW(),
-    $3, 
-    $4
+    $3
 )
-RETURNING sender_id, body, sent_at, hostname, port
+RETURNING sender_id, body, sent_at, hostname, port, server_id
 `
 
 type SendMessageParams struct {
 	SenderID uuid.UUID
 	Body     string
-	Hostname string
-	Port     string
+	ServerID uuid.UUID
 }
 
 func (q *Queries) SendMessage(ctx context.Context, arg SendMessageParams) (Message, error) {
-	row := q.db.QueryRowContext(ctx, sendMessage,
-		arg.SenderID,
-		arg.Body,
-		arg.Hostname,
-		arg.Port,
-	)
+	row := q.db.QueryRowContext(ctx, sendMessage, arg.SenderID, arg.Body, arg.ServerID)
 	var i Message
 	err := row.Scan(
 		&i.SenderID,
@@ -44,6 +74,7 @@ func (q *Queries) SendMessage(ctx context.Context, arg SendMessageParams) (Messa
 		&i.SentAt,
 		&i.Hostname,
 		&i.Port,
+		&i.ServerID,
 	)
 	return i, err
 }

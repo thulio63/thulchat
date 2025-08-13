@@ -10,17 +10,28 @@ VALUES (
 )
 RETURNING *;
 
--- name: FindUser :one
+-- name: FindID :one
 SELECT id
 FROM users
 WHERE username = $1;
 
 -- name: SetNickname :one
-INSERT INTO users (nickname)
-VALUES ($1)
+UPDATE users
+SET nickname = $1
+WHERE id = $2
 RETURNING *;
 
 -- name: CheckPassword :one
 SELECT id, username, created_at, updated_at, nickname
 FROM users
 WHERE password = $1;
+
+-- name: FindUserByID :one
+SELECT username, password, nickname
+FROM users
+WHERE id = $1;
+
+-- name: FindUserByUsername :one
+SELECT id, password, nickname
+FROM users
+WHERE username = $1;

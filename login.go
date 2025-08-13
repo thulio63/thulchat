@@ -36,7 +36,7 @@ func (cfg *config)login() {
 		}
 		
 		// query db with username, return uid if present, return uuid nil if not
-		uid, err := cfg.db.FindUser(cfg.ctx, username)
+		uid, err := cfg.db.FindID(cfg.ctx, username)
 		//ensures an empty table doesn't break the request
 		if err != nil && !errors.Is(err, sql.ErrNoRows){
 			cfg.colorCon.err.Println("Error connecting to the user database:", err)
@@ -70,9 +70,9 @@ func (cfg *config)login() {
 			cfg.colorCon.success.Println("")
 			cfg.colorCon.success.Println("Login successful!")
 			cfg.colorCon.success.Println("")
-			if pID.Nickname.Valid {
-				cfg.User.Nickname = pID.Nickname.String
-				cfg.colorCon.info.Println("Nickname found:", pID.Nickname.String)
+			if pID.Nickname != "" {
+				cfg.User.Nickname = pID.Nickname
+				cfg.colorCon.info.Println("Nickname found:", pID.Nickname)
 				cfg.colorCon.info.Println()
 			}
 			cfg.User.UserID = uid

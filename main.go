@@ -14,11 +14,11 @@ import (
 )
 
 type config struct {
+	rlc *readline.Config
 	db *database.Queries
 	User *User
 	command_list map[string]*cli_command
-	servers_active []*Server //CONNECT TO DB ON ENTRY TO POPULATE
-	//servers_count *int
+	servers_active []*Server 
 	MyIP net.IP
 	colorCon colorConfig
 	ctx context.Context
@@ -118,17 +118,27 @@ func main() {
 	} else if config.User.UserID != uuid.Nil {
 		prompt = config.User.Username + " > "
 	}
-	rl, err := readline.New(prompt)
+	rlCfg := CreateReadlineConfig(prompt) 
+	rl, err := readline.NewEx(&rlCfg)
 	if err != nil {
 		//change error handling
 		panic(err)
 	}
+
+	config.rlc = &rlCfg
+
 	//defer fmt.Println("Closing database...")
 	defer rl.Close()
 
+
+
 	for {
-		//logic for revealing commands to user
+		// logic for revealing commands to user
 		if config.User.UserID != uuid.Nil {
+			if config.command_list["login"].visible {
+				UpdateVisibile(false, config.command_list, "login")
+				UpdateVisibile(false, config.command_list, "signup")
+			}
 			if !config.command_list["create"].visible {
 				UpdateVisibile(true ,config.command_list, "create")
 				continue
@@ -148,21 +158,23 @@ func main() {
 		if err != nil {
 			break
 		}
-		trimmed := strings.TrimSpace(line)
+		trimmed := Clean(line)
 		if trimmed == "exit" {
 			//ui.Close()
 			personal := ""
 			if config.User.Username != "" {
 				personal = ", " + config.User.Username
 			}
-			config.colorCon.info.Println("deleting servers...")
-			_, err := config.db.DeleteServer(config.ctx, config.User.UserID)
-			if err != nil {
-				config.colorCon.err.Println("error deleting servers:", err)
+			numServers := len(config.servers_active)
+			if numServers > 0 {
+				_, err := config.db.DeleteServer(config.ctx, config.User.UserID)
+
+				if err != nil {
+					config.colorCon.err.Println("error deleting servers:", err)
+				} else {
+					config.colorCon.info.Println("servers closed")
+				}
 			}
-			// for s := len(config.servers_active) - 1; s >= 0; s--{
-			// 	config.db.DeleteServer(config.ctx, config.servers_active[s].serv.ServerID)
-			// }
 
 			farewell := fmt.Sprintf("\nClosing ThulChat. Goodbye%s!", personal)
 			config.colorCon.success.Println(farewell)
@@ -187,11 +199,16 @@ func main() {
 			config.colorCon.err.Println(response)
 			fmt.Println("")
 		} else { //sets prompt name to nickname or username
-			if config.User.Nickname != "" {
+
+			//REWORK TO FIT WITH RLCFG
+
+			if config.User.Nickname != "" && config.rlc.Prompt != config.User.Nickname + " > "{
 				rl.SetPrompt(config.User.Nickname + " > ")
+				config.rlc.Prompt = config.User.Nickname + " > "
 				continue
-			} else if config.User.UserID != uuid.Nil {
-				rl.SetPrompt(config.User.Username + " > ")
+				} else if config.User.UserID != uuid.Nil && config.rlc.Prompt != config.User.Username + " > "{
+					rl.SetPrompt(config.User.Username + " > ")
+					config.rlc.Prompt = config.User.Username + " > "
 				continue
 			} else {
 				continue

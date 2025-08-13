@@ -44,13 +44,13 @@ func (cfg *config)sign_up() {
 		}
 		//check if email already exists
 		info := context.Background()
-		uid, err := cfg.db.FindUser(info, username)
+		uid, err := cfg.db.FindUserByUsername(info, username)
 		//ensures an empty table doesn't break the request
 		if err != nil && !errors.Is(err, sql.ErrNoRows){
 			fmt.Println("Error connecting to the user database:", err)
 			return 
 		}
-		if uid != uuid.Nil {
+		if uid.ID != uuid.Nil {
 			fmt.Println("There is already a user named " + username)
 			//redirect logic
 			fmt.Println("Would you like to try again? (Y/n)")
@@ -86,7 +86,10 @@ func (cfg *config)sign_up() {
 		response := fmt.Sprintf("New user created! \nYour username is %s", newUser.Username)
 		fmt.Println(response)
 		fmt.Println("Would you like to create a nickname? (Y/n)")
-		nick := nickname_create(cfg.User.Username)
+		nick, err := nickname_create()
+		if err != nil {
+			return
+		}
 		cfg.User.Nickname = nick
 		fmt.Println("")
 		//cfg.pass = newUser.pass
@@ -118,7 +121,7 @@ func password_create() []byte {
 	return pass
 }
 
-func nickname_create(username string) string {
+func nickname_create() (string, error) {
 	//readline for repl commands
 	rl, err := readline.New("- ")
 	if err != nil {
@@ -130,16 +133,18 @@ func nickname_create(username string) string {
 	line, err := rl.Readline()
 	if err != nil {
 		//change error handling
-		fmt.Println("Error creating nickname:", err)
+		fmt.Println("error creating nickname:", err)
+		return "", err
 	}
 	if line != "Y" && line!="y" {
-		return username
+		return "", nil
 	}
 	fmt.Println("Choose your nickname:")
 	line, err = rl.Readline()
 	if err != nil {
 		//change error handling
-		fmt.Println("Error creating nickname:", err)
+		fmt.Println("error creating nickname:", err)
+		return "", err
 	}
-	return line
+	return line, nil
 }

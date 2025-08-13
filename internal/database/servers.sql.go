@@ -7,6 +7,7 @@ package database
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -61,8 +62,26 @@ func (q *Queries) DeleteServer(ctx context.Context, creatorID uuid.UUID) (Server
 	return i, err
 }
 
+const findServer = `-- name: FindServer :one
+SELECT server_id
+FROM servers
+WHERE hostname = $1 AND port = $2
+`
+
+type FindServerParams struct {
+	Hostname string
+	Port     string
+}
+
+func (q *Queries) FindServer(ctx context.Context, arg FindServerParams) (uuid.UUID, error) {
+	row := q.db.QueryRowContext(ctx, findServer, arg.Hostname, arg.Port)
+	var server_id uuid.UUID
+	err := row.Scan(&server_id)
+	return server_id, err
+}
+
 const retrieveServers = `-- name: RetrieveServers :many
-SELECT creator_id, server_id, hostname, port 
+SELECT creator_id, server_id, hostname, port, created_at
 FROM servers
 ORDER BY server_id
 `
@@ -72,6 +91,7 @@ type RetrieveServersRow struct {
 	ServerID  uuid.UUID
 	Hostname  string
 	Port      string
+	CreatedAt time.Time
 }
 
 func (q *Queries) RetrieveServers(ctx context.Context) ([]RetrieveServersRow, error) {
@@ -88,6 +108,7 @@ func (q *Queries) RetrieveServers(ctx context.Context) ([]RetrieveServersRow, er
 			&i.ServerID,
 			&i.Hostname,
 			&i.Port,
+			&i.CreatedAt,
 		); err != nil {
 			return nil, err
 		}

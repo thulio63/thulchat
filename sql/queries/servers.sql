@@ -15,6 +15,11 @@ WHERE creator_id = $1
 RETURNING *;
 
 -- name: RetrieveServers :many
-SELECT creator_id, server_id, hostname, port 
+SELECT creator_id, server_id, hostname, port, created_at
 FROM servers
 ORDER BY server_id;
+
+-- name: FindServer :one
+SELECT server_id
+FROM servers
+WHERE hostname = $1 AND port = $2;

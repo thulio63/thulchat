@@ -7,7 +7,6 @@ package database
 
 import (
 	"context"
-	"database/sql"
 	"time"
 
 	"github.com/google/uuid"
@@ -24,7 +23,7 @@ type CheckPasswordRow struct {
 	Username  string
 	CreatedAt time.Time
 	UpdatedAt time.Time
-	Nickname  sql.NullString
+	Nickname  string
 }
 
 func (q *Queries) CheckPassword(ctx context.Context, password []byte) (CheckPasswordRow, error) {
@@ -72,27 +71,71 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 	return i, err
 }
 
-const findUser = `-- name: FindUser :one
+const findID = `-- name: FindID :one
 SELECT id
 FROM users
 WHERE username = $1
 `
 
-func (q *Queries) FindUser(ctx context.Context, username string) (uuid.UUID, error) {
-	row := q.db.QueryRowContext(ctx, findUser, username)
+func (q *Queries) FindID(ctx context.Context, username string) (uuid.UUID, error) {
+	row := q.db.QueryRowContext(ctx, findID, username)
 	var id uuid.UUID
 	err := row.Scan(&id)
 	return id, err
 }
 
+const findUserByID = `-- name: FindUserByID :one
+SELECT username, password, nickname
+FROM users
+WHERE id = $1
+`
+
+type FindUserByIDRow struct {
+	Username string
+	Password []byte
+	Nickname string
+}
+
+func (q *Queries) FindUserByID(ctx context.Context, id uuid.UUID) (FindUserByIDRow, error) {
+	row := q.db.QueryRowContext(ctx, findUserByID, id)
+	var i FindUserByIDRow
+	err := row.Scan(&i.Username, &i.Password, &i.Nickname)
+	return i, err
+}
+
+const findUserByUsername = `-- name: FindUserByUsername :one
+SELECT id, password, nickname
+FROM users
+WHERE username = $1
+`
+
+type FindUserByUsernameRow struct {
+	ID       uuid.UUID
+	Password []byte
+	Nickname string
+}
+
+func (q *Queries) FindUserByUsername(ctx context.Context, username string) (FindUserByUsernameRow, error) {
+	row := q.db.QueryRowContext(ctx, findUserByUsername, username)
+	var i FindUserByUsernameRow
+	err := row.Scan(&i.ID, &i.Password, &i.Nickname)
+	return i, err
+}
+
 const setNickname = `-- name: SetNickname :one
-INSERT INTO users (nickname)
-VALUES ($1)
+UPDATE users
+SET nickname = $1
+WHERE id = $2
 RETURNING id, created_at, updated_at, username, password, nickname
 `
 
-func (q *Queries) SetNickname(ctx context.Context, nickname sql.NullString) (User, error) {
-	row := q.db.QueryRowContext(ctx, setNickname, nickname)
+type SetNicknameParams struct {
+	Nickname string
+	ID       uuid.UUID
+}
+
+func (q *Queries) SetNickname(ctx context.Context, arg SetNicknameParams) (User, error) {
+	row := q.db.QueryRowContext(ctx, setNickname, arg.Nickname, arg.ID)
 	var i User
 	err := row.Scan(
 		&i.ID,

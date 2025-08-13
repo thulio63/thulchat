@@ -7,8 +7,7 @@ import (
 )
 
 type Message struct {
-	ID uuid.UUID
-	Body string
-	TimeSent time.Time
-	Sender uuid.UUID
+	Body string `json:"body"`
+	TimeSent time.Time `json:"timeSent"`
+	Sender uuid.UUID `json:"sender"`
 }
